@@ -216,3 +216,22 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Custom rules for this portfolio ---
+
+# Virtual environments (in case they're not fully covered by the template)
+.venv/
+env/
+venv/
+
+# Environment variables / secrets — never commit real API keys
+.env
+*.env
+*.key
+
+# Generated outputs from scripts (keep the folder, ignore its contents)
+**/output/*
+!**/output/.gitkeep
+
+# OS files
+.DS_Store
