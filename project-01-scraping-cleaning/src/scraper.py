@@ -29,7 +29,7 @@ OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 OUTPUT_FILE = OUTPUT_DIR / "raw_data.json"
 
 PRODUCT_CARD_SELECTOR = "div.su-card-container__content"
-TITLE_SELECTOR = "div.s-card__title span"
+TITLE_SELECTOR = "div.s-card__title span.su-styled-text.primary.default"
 PRICE_SELECTOR = "span.s-card__price span.su-styled-text.primary.bold"
 PRICE_FALLBACK_SELECTOR = "span.s-card__price"
 SHIPPING_SELECTOR = (
