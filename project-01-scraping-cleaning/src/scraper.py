@@ -23,7 +23,7 @@ PAGE_LOAD_TIMEOUT_MS = 5000
 # Keep True for normal runs. If scraping suddenly returns no results
 # (possible anti-bot detection or a layout change), switch to False
 # temporarily to watch the browser and debug visually.
-HEADLESS = False
+HEADLESS = True
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 OUTPUT_FILE = OUTPUT_DIR / "raw_data.json"
@@ -36,6 +36,8 @@ SHIPPING_SELECTOR = (
     "div.s-card__attribute-row:nth-of-type(3) "
     "span.su-styled-text.secondary.large"
 )
+CONDITION_SELECTOR = "div.s-card__subtitle span.su-styled-text.secondary.default"
+CONDITION_SEPARATOR_CHARS = " ·"
 SPONSORED_LISTING_TEXT = "Shop on eBay"
 
 logging.basicConfig(
@@ -61,6 +63,26 @@ def _extract_text(card: Tag, selector: str) -> str | None:
     return element.get_text(strip=True) if element else None
 
 
+def _clean_condition_text(raw_condition: str | None) -> str | None:
+    """Strip the trailing separator eBay adds after the condition text.
+
+    eBay renders the condition as the first item in a subtitle line
+    shared with other attributes (e.g. "Refurbished · Dell"), so the
+    raw extracted text includes a trailing " · " that needs to be
+    removed to keep only the condition value itself.
+
+    Args:
+        raw_condition: The raw text extracted from the condition span,
+            or None if the element wasn't found.
+
+    Returns:
+        The cleaned condition text, or None if there was nothing to clean.
+    """
+    if not raw_condition:
+        return None
+    return raw_condition.rstrip(CONDITION_SEPARATOR_CHARS) or None
+
+
 def parse_product_card(card: Tag) -> dict | None:
     """Extract raw product fields from a single product card.
 
@@ -80,8 +102,14 @@ def parse_product_card(card: Tag) -> dict | None:
         card, PRICE_FALLBACK_SELECTOR
     )
     shipping = _extract_text(card, SHIPPING_SELECTOR)
+    condition = _clean_condition_text(_extract_text(card, CONDITION_SELECTOR))
 
-    return {"title": title, "price": price, "shipping": shipping}
+    return {
+        "title": title,
+        "price": price,
+        "shipping": shipping,
+        "condition": condition,
+    }
 
 
 def extract_products_from_html(html: str) -> list[dict]:
