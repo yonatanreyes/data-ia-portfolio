@@ -24,7 +24,7 @@ PAGE_LOAD_TIMEOUT_MS = 5000
 # Keep True for normal runs. If scraping suddenly returns no results
 # (possible anti-bot detection or a layout change), switch to False
 # temporarily to watch the browser and debug visually.
-HEADLESS = True
+HEADLESS = False
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 OUTPUT_FILE = OUTPUT_DIR / "raw_data.json"
@@ -157,32 +157,35 @@ def extract_products_from_html(html: str) -> list[dict]:
 # --- Scraping ------------------------------------------------------------
 
 async def fetch_page_html(page: Page, url: str) -> str:
-    """Navigate to a URL and return the rendered page HTML.
-
-    eBay occasionally aborts the initial navigation with a redirect,
-    which Playwright surfaces as an exception even though the page
-    still loads correctly. That case is logged as a warning and
-    execution continues; any other issue would surface later when the
-    HTML fails to contain the expected product cards.
+    """Navigate to a URL and return the rendered page HTML safely.
 
     Args:
         page: An active Playwright Page instance.
         url: The URL to navigate to.
 
     Returns:
-        The full HTML content of the page after the fixed wait.
+        The full HTML content of the page, or an empty string if the page crashes.
     """
     try:
         await page.goto(url, wait_until="domcontentloaded")
     except Exception as error:  # noqa: BLE001 - eBay redirect quirk
         logger.warning("Navigation warning for %s: %s", url, error)
 
+    # Wait for product cards to render, but don't crash if they don't appear.
+    try:
+        await page.wait_for_selector(PRODUCT_CARD_SELECTOR, timeout=5000)
+    except Exception:
+        pass # Continue to get content even if selector times out
+
     # Fixed wait to allow eBay's client-side rendering to finish.
-    # Using a static timeout instead of wait_for_selector helps simulate 
-    # human-like browsing behavior, reducing the chance of anti-bot triggers.   
     await page.wait_for_timeout(PAGE_LOAD_TIMEOUT_MS)
 
-    return await page.content()
+    # Safely get HTML content. If the page crashed, return an empty string.
+    try:
+        return await page.content()
+    except Exception as error:
+        logger.error("Page crashed while getting content: %s", error)
+        return ""
 
 
 async def scrape_listings(max_pages: int = MAX_PAGES) -> list[dict]:
@@ -207,7 +210,25 @@ async def scrape_listings(max_pages: int = MAX_PAGES) -> list[dict]:
                 logger.info("Scraping page %d: %s", page_number, url)
 
                 html = await fetch_page_html(page, url)
+                
+                # If the page crashed and returned empty HTML
+                if not html:
+                    logger.warning("Page %d returned empty HTML. Recreating browser tab...", page_number)
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
+                    # Open a new tab to continue with the next page
+                    page = await context.new_page()
+                    continue
+
                 page_products = extract_products_from_html(html)
+                
+                # If no products were extracted (possible anti-bot block)
+                if not page_products:
+                    logger.warning("No products extracted from page %d. It might be an anti-bot block.", page_number)
+                    continue
+                    
                 all_products.extend(page_products)
         finally:
             # Ensures the browser is closed even if scraping fails,
