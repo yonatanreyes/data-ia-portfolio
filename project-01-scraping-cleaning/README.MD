@@ -36,7 +36,6 @@ Raw scraped data is messy: prices come as strings with currency symbols, shippin
 project-01-scraping-cleaning/
 ├── README.md
 ├── requirements.txt
-├── .env.example
 ├── src/
 │   ├── scraper.py       # Playwright + BeautifulSoup extraction
 │   └── cleaning.py      # Pandas transformation
