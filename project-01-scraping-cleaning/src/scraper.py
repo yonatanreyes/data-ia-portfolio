@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 from pathlib import Path
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag
@@ -29,6 +30,8 @@ OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 OUTPUT_FILE = OUTPUT_DIR / "raw_data.json"
 
 PRODUCT_CARD_SELECTOR = "div.su-card-container__content"
+ITEM_LINK_SELECTOR = "a.s-card__link"
+EBAY_DOMAIN = "https://www.ebay.com"
 TITLE_SELECTOR = "div.s-card__title span.su-styled-text.primary.default"
 PRICE_SELECTOR = "span.s-card__price span.su-styled-text.primary.bold"
 PRICE_FALLBACK_SELECTOR = "span.s-card__price"
@@ -61,6 +64,26 @@ def _extract_text(card: Tag, selector: str) -> str | None:
     """
     element = card.select_one(selector)
     return element.get_text(strip=True) if element else None
+
+
+def _extract_href(card: Tag, selector: str) -> str | None:
+    """Return the absolute URL from the href attribute of an element.
+
+    eBay's markup always renders absolute URLs for item links, but this
+    still resolves against the site's domain via urljoin as a safety
+    net in case a relative path ever appears.
+
+    Args:
+        card: A BeautifulSoup Tag representing a single product card.
+        selector: CSS selector of the anchor element to look for.
+
+    Returns:
+        The absolute URL if the element and its href are found,
+        otherwise None.
+    """
+    element = card.select_one(selector)
+    href = element.get("href") if element else None
+    return urljoin(EBAY_DOMAIN, href) if href else None
 
 
 def _clean_condition_text(raw_condition: str | None) -> str | None:
@@ -103,12 +126,14 @@ def parse_product_card(card: Tag) -> dict | None:
     )
     shipping = _extract_text(card, SHIPPING_SELECTOR)
     condition = _clean_condition_text(_extract_text(card, CONDITION_SELECTOR))
+    item_url = _extract_href(card, ITEM_LINK_SELECTOR)
 
     return {
         "title": title,
         "price": price,
         "shipping": shipping,
         "condition": condition,
+        "item_url": item_url,
     }
 
 
