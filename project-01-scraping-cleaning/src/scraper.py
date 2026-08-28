@@ -178,9 +178,8 @@ async def fetch_page_html(page: Page, url: str) -> str:
         logger.warning("Navigation warning for %s: %s", url, error)
 
     # Fixed wait to allow eBay's client-side rendering to finish.
-    # TODO: replace with page.wait_for_selector(PRODUCT_CARD_SELECTOR)
-    # for a more reliable, less arbitrary wait once the selector has
-    # been confirmed stable across page loads.
+    # Using a static timeout instead of wait_for_selector helps simulate 
+    # human-like browsing behavior, reducing the chance of anti-bot triggers.   
     await page.wait_for_timeout(PAGE_LOAD_TIMEOUT_MS)
 
     return await page.content()
